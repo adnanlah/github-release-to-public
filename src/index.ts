@@ -21,7 +21,7 @@ app.get("/", (_req: Request, res: Response): void => {
   try {
     // res.render("index.njk")
     res.send('gh release webhook')
-  } catch (err) {
+  } catch (err: any) {
     res.sendStatus(500)
     res.json({ message: err.message })
   }
@@ -41,7 +41,7 @@ app.post("/webhook", (req: Request, res: Response): void => {
       console.log('signature is correct')
       res.sendStatus(200)
     }
-  } catch (err) {
+  } catch (err: any) {
     res.sendStatus(500)
     console.log(err.message)
     res.json({ message: err.message })
