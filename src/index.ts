@@ -1,10 +1,10 @@
-require("dotenv").config()
-import fetch from "node-fetch"
-import express from "express"
-import nunjucks from "nunjucks"
 import crypto from "crypto"
+import express, { Request, Response } from "express"
+import nunjucks from "nunjucks"
 import path from "path"
-import { Response, Request } from "express"
+import { publish } from "./helpers"
+
+const { GITHUB_TOKEN, OWNER, TARGET_REPO, PORT } = process.env
 
 const app = express()
 app.use(express.raw({ type: "*/*" })) // raw data for
@@ -20,38 +20,57 @@ nunjucks.configure("views", {
 app.get("/", (_req: Request, res: Response): void => {
   try {
     // res.render("index.njk")
-    res.send('gh release webhook')
+    res.send("gh release webhook")
   } catch (err: any) {
     res.sendStatus(500)
     res.json({ message: err.message })
   }
 })
 
-app.post("/webhook", (req: Request, res: Response): void => {
-  try {
-    const signature = req.header("x-hub-signature-256")
-    const hash = 'sha256=' + crypto
-      .createHmac("sha256", process.env.SECRET || "")
-      .update(req.body)
-      .digest("hex")
-    if (signature !== hash) {
-      res.sendStatus(403)
-    } else {
-      const json = JSON.parse(req.body)
-      console.log('signature is correct')
-      res.sendStatus(200)
+console.log("process.env.NODE_ENV", process.env.NODE_ENV)
+
+app.post(
+  "/webhook",
+  async (req: Request, res: Response): Promise<Response<any, Record<string, any>>> => {
+    try {
+      const signature = req.header("X-Hub-Signature-256")
+      const event = req.header("X-GitHub-Event")
+
+      console.log({ event })
+
+      const hash =
+        "sha256=" +
+        crypto
+          .createHmac("sha256", process.env.SECRET || "")
+          .update(req.body)
+          .digest("hex")
+      const isSafe = signature === hash
+      if (process.env.NODE_ENV === "production" && !isSafe) {
+        return res.sendStatus(403)
+      } else {
+        console.log("--- signature is correct ---")
+        const payload = JSON.parse(req.body)
+        console.log("--- payload.action ---", payload.action)
+
+        if (payload.action !== "published")
+          return res.sendStatus(400).send("Release actions is not published")
+
+        if (!GITHUB_TOKEN || !TARGET_REPO || !OWNER)
+          return res.status(400).send("Invalid environement variables")
+
+        await publish(payload)
+
+        return res.sendStatus(200)
+      }
+    } catch (err: any) {
+      console.log(err.message)
+      return res.status(500).send({ message: err.message })
     }
-  } catch (err: any) {
-    res.sendStatus(500)
-    console.log(err.message)
-    res.json({ message: err.message })
   }
-})
+)
 
-const port = process.env.PORT
-
-app.listen(port, () => {
-  console.log(`Listening at http://localhost:${port}`)
+app.listen(PORT, () => {
+  console.log(`Listening at http://localhost:${PORT}`)
 })
 
 export { app }
