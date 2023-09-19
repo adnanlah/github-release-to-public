@@ -44,7 +44,9 @@ app.post(
           .createHmac("sha256", process.env.SECRET || "")
           .update(req.body)
           .digest("hex")
+
       const isSafe = signature === hash
+
       if (process.env.NODE_ENV === "production" && !isSafe) {
         return res.sendStatus(403)
       } else {
@@ -56,7 +58,7 @@ app.post(
           return res.sendStatus(400).send("Release actions is not published")
 
         if (!GITHUB_TOKEN || !TARGET_REPO || !OWNER)
-          return res.status(400).send("Invalid environement variables")
+          return res.sendStatus(400).send("Invalid environement variables")
 
         await publish(payload)
 
